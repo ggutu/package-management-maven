@@ -1,0 +1,54 @@
+node{
+def mavenHome = tool name: 'maven3.9.6'
+	stage('1.cloneCode'){
+	//git "https://github.com/ggutu/maven-web-application-private.git"
+	git credentialsId: 'GitHub-credintial', url: 'https://github.com/ggutu/maven-web-application-private.git'
+
+	}
+	stage('2.buildScrpt'){
+	 sh "echo build deployable package"
+	 sh "${mavenHome}/bin/mvn package" 
+
+	}
+	stage('3.CodeQaulityAnalaysis'){
+	sh "echo code quality anlysis will check by sonar"
+	 sh "${mavenHome}/bin/mvn sonar:sonar"
+
+
+	}
+	stage('4.uploadartifact'){
+	sh "echo will upload artifactory from devbranch to nexus release repo"
+	sh "echo will upload artifactory from Masterbranch to nexus Snapshot repo"
+	sh "${mavenHome}/bin/mvn deploy" 
+
+	}
+	stage('5.deploy2UAT'){
+	sh "echo upload user acceptance test"
+	sh "${mavenHome}/bin/mvn deploy"
+	deploy adapters: [tomcat9(credentialsId: 'tomcatcredential', path: '', url: 'http://3.85.225.248:8088/manager/html/undeploy;jsessionid=230B7AA3C2231113A31CC82315929C84?path=/tesla&org.apache.catalina.filters.CSRF_NONCE=9DD4CB6D9CBF99A93F018603FCE22DDB')], contextPath: null, war: 'target/*war'
+	}
+	stage('6.manualApproval'){
+     sh "echo manual approval required before deploy to production"
+     timeout(time:5,unit:'HOURS')
+	{
+	input message: "please review and approve"
+	} 
+
+	}
+	stage('7.Deploy2Production'){
+	//sh "${mavenHome}/bin/mvn deploy"
+	sh "echo deploy to production from masterBranch"
+    sh "echo deploy to tomcat app server"
+    deploy adapters: [tomcat9(credentialsId: 'tomcatcredential', path: '', url: 'http://3.85.225.248:8088/manager/html/undeploy;jsessionid=230B7AA3C2231113A31CC82315929C84?path=/tesla&org.apache.catalina.filters.CSRF_NONCE=9DD4CB6D9CBF99A93F018603FCE22DDB')], contextPath: null, war: 'target/*war'
+     
+	}
+    stage('8.EmailNotificatio'){
+    sh "echo please inform if any build failed"
+    emailext body: '''Hell 
+Please check the build while you received this email.''', subject: 'Deploy Production', to: 'gizachoo@gmail.com'
+    }
+    stage('monitoring'){
+    sh "echo monitor the server using script df -h and free"
+
+    }	
+}
